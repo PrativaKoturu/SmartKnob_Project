@@ -1,24 +1,37 @@
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 class ApiService {
-  static const String _baseUrl =
-      "http://192.168.1.4:8080"; // Use your actual IP
+  static const String _baseUrl = "http://192.168.240.220";
+  static const Duration _timeout = Duration(seconds: 2);
 
-  static Future<void> setTimer(int time) async {
+  static Future<void> startTimer(int seconds) async {
     try {
-      final response = await http.post(
-        Uri.parse("$_baseUrl/set-timer"),
-        headers: {"Content-Type": "application/json"},
-        body: jsonEncode({"time": time}),
-      );
-      if (response.statusCode == 200) {
-        print("Timer set successfully!");
-      } else {
-        print("Failed to set timer.");
-      }
+      int milliseconds = seconds * 1000;
+      await http
+          .get(Uri.parse("$_baseUrl/start?time=$milliseconds"))
+          .timeout(_timeout);
     } catch (e) {
-      print("Error: $e");
+      print("Error starting timer: $e");
+    }
+  }
+
+  static Future<void> stopTimer() async {
+    try {
+      await http
+          .get(Uri.parse("$_baseUrl/stop")) // Removed query parameter
+          .timeout(_timeout);
+    } catch (e) {
+      print("Error stopping timer: $e");
+    }
+  }
+
+  static Future<void> resetTimer() async {
+    try {
+      await http
+          .get(Uri.parse("$_baseUrl/reset")) // Removed query parameter
+          .timeout(_timeout);
+    } catch (e) {
+      print("Error resetting timer: $e");
     }
   }
 }
