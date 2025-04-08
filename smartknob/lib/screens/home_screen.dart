@@ -1,6 +1,9 @@
+import 'dart:ui';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import '../services/api_service.dart';
+import 'volumecontrol_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -9,16 +12,15 @@ class HomeScreen extends StatefulWidget {
   _HomeScreenState createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   Timer? _timer;
   int remainingTime = 25 * 60;
-  int lastSetTime = 25 * 60; // Store the last set time
+  int lastSetTime = 25 * 60;
   bool isRunning = false;
-  final TextEditingController _timeController = TextEditingController();
 
   void startTimer() async {
     if (!isRunning) {
-      await ApiService.startTimer(remainingTime); // Pass the custom time
+      await ApiService.startTimer(remainingTime);
       setState(() {
         isRunning = true;
       });
@@ -42,140 +44,280 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void setCustomTime() {
-    if (_timeController.text.isNotEmpty) {
-      int? inputSeconds = int.tryParse(_timeController.text);
-      if (inputSeconds != null && inputSeconds > 0) {
-        setState(() {
-          remainingTime = inputSeconds;
-          lastSetTime = inputSeconds; // Store the custom time
-          _timeController.clear();
-        });
-      }
-    }
+  void resetTimer() async {
+    await ApiService.resetTimer();
+    _timer?.cancel();
+    setState(() {
+      remainingTime = lastSetTime;
+      isRunning = false;
+    });
+  }
+
+  void _showTimePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1B4079),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) {
+        return SizedBox(
+          height: 250,
+          child: CupertinoTimerPicker(
+            mode: CupertinoTimerPickerMode.ms,
+            initialTimerDuration: Duration(seconds: remainingTime),
+            onTimerDurationChanged: (Duration newDuration) {
+              setState(() {
+                remainingTime = newDuration.inSeconds;
+                lastSetTime = newDuration.inSeconds;
+              });
+            },
+          ),
+        );
+      },
+    );
   }
 
   String formatTime() {
-    // Changed to show total seconds if less than 60
-    if (remainingTime < 60) {
-      return '00:${remainingTime.toString().padLeft(2, '0')}';
-    }
     int minutes = remainingTime ~/ 60;
     int seconds = remainingTime % 60;
     return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
-  void resetTimer() async {
-    await ApiService.resetTimer();
-    _timer?.cancel();
-    setState(() {
-      remainingTime = lastSetTime; // Use the last set time instead of 25 * 60
-      isRunning = false;
-    });
-  }
-
   @override
   void dispose() {
-    _timeController.dispose();
     _timer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF4A148C), Colors.black],
+    return PageView(
+      children: [
+        Scaffold(
+          backgroundColor: const Color(0xFF1B4079),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 20),
+                  _buildTopBar(),
+                  const SizedBox(height: 20),
+                  Text(
+                    "Stay focused, you're doing great!",
+                    style: TextStyle(
+                      color: const Color(0xFF4D7C8A),
+                      fontSize: 18,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  _buildTimerRing(),
+                  const SizedBox(height: 30),
+                  _buildSetTimeButton(),
+                  const SizedBox(height: 30),
+                  _buildControlButtons(),
+                  const SizedBox(height: 20),
+                ],
+              ),
+            ),
           ),
         ),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'Pomodoro Timer',
-                style: TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
+        const VolumeControlScreen(),
+      ],
+    );
+  }
+
+  Widget _buildTopBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.white.withOpacity(0.1), Colors.white.withOpacity(0.05)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              const SizedBox(height: 40),
-              // Add input field
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 50),
-                child: TextField(
-                  controller: _timeController,
-                  keyboardType: TextInputType.number,
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: "Enter time in seconds",
-                    hintStyle: const TextStyle(color: Colors.white54),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.check, color: Colors.greenAccent),
-                      onPressed: setCustomTime,
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.blueAccent),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(color: Colors.greenAccent),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withOpacity(0.3)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.white.withOpacity(0.05),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: const [
+                Icon(Icons.timer_outlined, color: Colors.white, size: 26),
+                SizedBox(width: 10),
+                Text(
+                  "Pomodoro Timer",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black38,
+                        offset: Offset(1, 1),
+                        blurRadius: 2,
+                      )
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                formatTime(),
-                style: const TextStyle(
-                  fontSize: 72,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 40),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: isRunning ? null : startTimer,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 30, vertical: 15),
-                      backgroundColor: Colors.green,
-                    ),
-                    child: const Text('Start', style: TextStyle(fontSize: 20)),
-                  ),
-                  const SizedBox(width: 20),
-                  ElevatedButton(
-                    onPressed: isRunning ? stopTimer : null,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 30, vertical: 15),
-                      backgroundColor: Colors.red,
-                    ),
-                    child: const Text('Stop', style: TextStyle(fontSize: 20)),
-                  ),
-                  const SizedBox(width: 20),
-                  ElevatedButton(
-                    onPressed: resetTimer,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 30, vertical: 15),
-                      backgroundColor: Colors.blue,
-                    ),
-                    child: const Text('Reset', style: TextStyle(fontSize: 20)),
-                  ),
-                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimerRing() {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 240,
+          height: 240,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFCBDF90).withOpacity(0.4),
+                blurRadius: 25,
+                spreadRadius: 6,
               ),
             ],
           ),
+          child: CircularProgressIndicator(
+            value: remainingTime / lastSetTime,
+            strokeWidth: 14,
+            backgroundColor: Colors.white12,
+            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFCBDF90)),
+          ),
+        ),
+        Text(
+          formatTime(),
+          style: const TextStyle(
+            fontSize: 52,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFFB8D8D8),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSetTimeButton() {
+    return GestureDetector(
+      onTap: _showTimePicker,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+  colors: [
+    Color(0xFFCBDF90), // Mindaro
+    Color(0xFF8FAD88), // Cambridge Blue
+    Color(0xFF4D7C8A), // Deep Space Sparkle
+    Color(0xFF1B4079), // Yale Blue
+  ],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+),
+
+          borderRadius: BorderRadius.circular(40),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF5151E5).withOpacity(0.5),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.access_time_filled, color: Colors.white),
+            SizedBox(width: 10),
+            Text(
+              "Set Timer",
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlButtons() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _neumorphicButton(
+          label: isRunning ? "Pause" : "Start",
+          icon: isRunning ? Icons.pause : Icons.play_arrow,
+          onTap: isRunning ? stopTimer : startTimer,
+        ),
+        const SizedBox(width: 30),
+        _neumorphicButton(
+          label: "Reset",
+          icon: Icons.restart_alt,
+          onTap: resetTimer,
+        ),
+      ],
+    );
+  }
+
+  Widget _neumorphicButton({required String label, required IconData icon, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF7F9C96),
+          borderRadius: BorderRadius.circular(30),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black45,
+              offset: Offset(4, 4),
+              blurRadius: 8,
+            ),
+            BoxShadow(
+              color: Colors.white24,
+              offset: Offset(-4, -4),
+              blurRadius: 8,
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 10),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 16,
+              ),
+            ),
+          ],
         ),
       ),
     );
